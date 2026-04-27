@@ -6,25 +6,7 @@ import { Course, getLastCompletedMilestone, getNextPendingMilestone, isMilestone
 import { getCourseAlerts } from '../lib/courseAlerts';
 import { mockCourses } from '../lib/mockCourses';
 import { formatCourseDate } from '../lib/courseUtils';
-
-const COURSES_STORAGE_KEY = 'diena-control-360.courses';
-
-function readStoredCourses(): Course[] {
-  if (typeof window === 'undefined') return mockCourses;
-  try {
-    const storedValue = window.localStorage.getItem(COURSES_STORAGE_KEY);
-    if (!storedValue) return mockCourses;
-    const parsed = JSON.parse(storedValue) as Course[];
-    return Array.isArray(parsed) && parsed.length ? parsed : mockCourses;
-  } catch {
-    return mockCourses;
-  }
-}
-
-function writeStoredCourses(courses: Course[]): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify(courses));
-}
+import { readStoredCourses, writeStoredCourses } from '../lib/localStorage';
 
 function alertClass(level: string): string {
   if (level === 'critica') return 'border-red-700 bg-red-950/40 text-red-100';
@@ -92,7 +74,7 @@ export default function CourseDetailClient({ courseId }: { courseId: string }) {
           <p className="mt-5 text-sm uppercase tracking-[0.3em] text-blue-300">Ficha completa de curso</p>
           <h1 className="mt-2 text-3xl font-bold">{course.code}</h1>
           <p className="mt-2 max-w-4xl text-xl text-slate-300">{course.name}</p>
-          <p className="mt-2 text-sm text-slate-500">Datos sincronizados con localStorage del módulo /cursos.</p>
+          <p className="mt-2 text-sm text-slate-500">Datos sincronizados con la capa centralizada de almacenamiento local.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-200">{course.status}</span>
