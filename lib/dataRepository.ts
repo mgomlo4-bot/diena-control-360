@@ -22,6 +22,24 @@ import {
   writeStoredManualTasks,
 } from './localStorage';
 
+function courseTaskToManualTask(task: CourseTask): ManualTaskSeed {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    courseId: task.courseId,
+    courseCode: task.courseCode,
+    courseName: task.courseName,
+    dueDate: task.dueDate,
+    priority: task.priority,
+    status: task.status,
+    responsible: task.responsible,
+    linkType: task.linkType,
+    relatedLabel: task.relatedLabel,
+    createdAt: task.createdAt,
+  };
+}
+
 export async function getCourses(): Promise<Course[]> {
   if (DATA_SOURCE_MODE === 'database') return fetchCoursesFromApi();
   return readStoredCourses();
@@ -74,14 +92,24 @@ export async function resetCourses(): Promise<Course[]> {
 export async function getManualTasks(): Promise<ManualTaskSeed[]> {
   if (DATA_SOURCE_MODE === 'database') {
     const tasks = await fetchTasksFromApi();
-    return tasks.filter((task) => task.source === 'manual') as unknown as ManualTaskSeed[];
+    return tasks.filter((task) => task.source === 'manual').map(courseTaskToManualTask);
   }
   return readStoredManualTasks();
 }
 
+export async function getPersistedTasks(): Promise<CourseTask[]> {
+  if (DATA_SOURCE_MODE === 'database') return fetchTasksFromApi();
+  return readStoredManualTasks().map((task) => ({
+    ...task,
+    source: 'manual',
+    milestoneId: undefined,
+    milestoneCode: undefined,
+  }));
+}
+
 export async function saveManualTasks(tasks: ManualTaskSeed[]): Promise<ManualTaskSeed[]> {
   if (DATA_SOURCE_MODE === 'database') {
-    throw new Error('saveManualTasks no debe usarse en modo database. Use createTask, updateTask o deleteTask.');
+    return tasks;
   }
   writeStoredManualTasks(tasks);
   return tasks;
