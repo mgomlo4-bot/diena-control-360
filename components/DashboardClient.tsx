@@ -7,33 +7,7 @@ import { ManualTaskSeed, getCourseTasks, getTaskSummary, getTodayTasks, getUpcom
 import { mockCourses } from '../lib/mockCourses';
 import { mockManualTasks } from '../lib/mockTasks';
 import { formatCourseDate } from '../lib/courseUtils';
-
-const COURSES_STORAGE_KEY = 'diena-control-360.courses';
-const MANUAL_TASKS_STORAGE_KEY = 'diena-control-360.manualTasks';
-
-function readStoredCourses(): Course[] {
-  if (typeof window === 'undefined') return mockCourses;
-  try {
-    const value = window.localStorage.getItem(COURSES_STORAGE_KEY);
-    if (!value) return mockCourses;
-    const parsed = JSON.parse(value) as Course[];
-    return Array.isArray(parsed) && parsed.length ? parsed : mockCourses;
-  } catch {
-    return mockCourses;
-  }
-}
-
-function readStoredManualTasks(): ManualTaskSeed[] {
-  if (typeof window === 'undefined') return mockManualTasks;
-  try {
-    const value = window.localStorage.getItem(MANUAL_TASKS_STORAGE_KEY);
-    if (!value) return mockManualTasks;
-    const parsed = JSON.parse(value) as ManualTaskSeed[];
-    return Array.isArray(parsed) ? parsed : mockManualTasks;
-  } catch {
-    return mockManualTasks;
-  }
-}
+import { readStoredCourses, readStoredManualTasks } from '../lib/localStorage';
 
 function priorityClass(priority: string): string {
   if (priority === 'critica') return 'bg-red-900 text-red-100';
@@ -143,7 +117,7 @@ export default function DashboardClient() {
           <article className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
             <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Sistema</p>
             <p className="mt-3 text-sm text-slate-300">
-              El dashboard lee los mismos datos locales que cursos y tareas. Es la antesala de la futura persistencia en base de datos.
+              El dashboard lee los mismos datos locales que cursos y tareas mediante una capa centralizada de almacenamiento.
             </p>
           </article>
         </aside>
