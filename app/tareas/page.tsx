@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import {
   CourseTask,
+  ManualTaskSeed,
+  TaskLinkType,
+  TaskPriority,
   TaskSource,
   TaskStatus,
   filterTasksBySource,
@@ -17,7 +20,29 @@ import { mockCourses } from '../../lib/mockCourses';
 import { mockManualTasks } from '../../lib/mockTasks';
 import { formatCourseDate } from '../../lib/courseUtils';
 
-const allTasks = getCourseTasks(mockCourses, mockManualTasks);
+type ManualTaskFormState = {
+  title: string;
+  description: string;
+  courseId: string;
+  dueDate: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  responsible: string;
+  linkType: TaskLinkType;
+  relatedLabel: string;
+};
+
+const initialForm: ManualTaskFormState = {
+  title: '',
+  description: '',
+  courseId: mockCourses[0]?.id ?? '',
+  dueDate: new Date().toISOString().slice(0, 10),
+  priority: 'media',
+  status: 'pendiente',
+  responsible: 'DIENA - Sección de Perfeccionamiento',
+  linkType: 'curso',
+  relatedLabel: '',
+};
 
 function priorityClass(priority: string): string {
   if (priority === 'critica') return 'border-red-700 bg-red-950/40 text-red-100';
@@ -43,9 +68,13 @@ function statusLabel(status: TaskStatus): string {
 }
 
 export default function TareasPage() {
+  const [manualTasks, setManualTasks] = useState<ManualTaskSeed[]>(mockManualTasks);
+  const [form, setForm] = useState<ManualTaskFormState>(initialForm);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'todas'>('todas');
   const [sourceFilter, setSourceFilter] = useState<TaskSource | 'todas'>('todas');
   const [query, setQuery] = useState('');
+
+  const allTasks = useMemo(() => getCourseTasks(mockCourses, manualTasks), [manualTasks]);
 
   const filteredTasks = useMemo(() => {
     const byStatus = filterTasksByStatus(allTasks, statusFilter);
@@ -69,11 +98,41 @@ export default function TareasPage() {
         .toLowerCase()
         .includes(cleanQuery),
     );
-  }, [query, sourceFilter, statusFilter]);
+  }, [allTasks, query, sourceFilter, statusFilter]);
 
   const summary = getTaskSummary(filteredTasks);
   const todayTasks = getTodayTasks(filteredTasks);
   const upcomingTasks = getUpcomingTasks(filteredTasks, 15);
+
+  function updateForm<K extends keyof ManualTaskFormState>(field: K, value: ManualTaskFormState[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function createManualTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const course = mockCourses.find((item) => item.id === form.courseId);
+    const generatedId = `manual-${Date.now()}`;
+
+    const newTask: ManualTaskSeed = {
+      id: generatedId,
+      title: form.title.trim() || 'Tarea manual sin título',
+      description: form.description.trim() || 'Tarea creada manualmente desde la bandeja operativa.',
+      courseId: form.linkType === 'general' ? undefined : course?.id,
+      courseCode: form.linkType === 'general' ? undefined : course?.code,
+      courseName: form.linkType === 'general' ? undefined : course?.name,
+      dueDate: form.dueDate,
+      priority: form.priority,
+      status: form.status,
+      responsible: form.responsible.trim() || 'DIENA - Sección de Perfeccionamiento',
+      linkType: form.linkType,
+      relatedLabel: form.relatedLabel.trim() || course?.code || 'Tarea general',
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+
+    setManualTasks((current) => [newTask, ...current]);
+    setForm(initialForm);
+    setSourceFilter('manual');
+  }
 
   return (
     <section className="space-y-6">
@@ -126,7 +185,7 @@ export default function TareasPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+      <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
         <article className="rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
           <div className="border-b border-slate-800 p-5">
             <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Bandeja principal</p>
@@ -144,18 +203,92 @@ export default function TareasPage() {
         <aside className="space-y-5">
           <Panel title="Hoy o vencidas" value={todayTasks.length} description="Tareas cuya fecha límite ya ha llegado o está vencida." tone="red" />
           <Panel title="Próximos 15 días" value={upcomingTasks.length} description="Tareas que conviene anticipar antes de que bloqueen el curso." tone="blue" />
-          <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Crear tarea manual</p>
-            <p className="mt-3 text-sm text-slate-300">
-              El modelo ya admite tareas manuales vinculadas a curso, hito, instancia, documento o asunto general. El siguiente paso será convertir este bloque en formulario persistente.
-            </p>
-            <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">
-              Formulario preparado para base de datos: título, vínculo, responsable, prioridad, estado y fecha límite.
-            </div>
-          </article>
+          <ManualTaskForm form={form} onChange={updateForm} onSubmit={createManualTask} />
         </aside>
       </div>
     </section>
+  );
+}
+
+function ManualTaskForm({
+  form,
+  onChange,
+  onSubmit,
+}: {
+  form: ManualTaskFormState;
+  onChange: <K extends keyof ManualTaskFormState>(field: K, value: ManualTaskFormState[K]) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+      <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Crear tarea manual</p>
+      <div className="mt-4 space-y-3">
+        <input
+          value={form.title}
+          onChange={(event) => onChange('title', event.target.value)}
+          placeholder="Título de la tarea"
+          className="input"
+        />
+        <textarea
+          value={form.description}
+          onChange={(event) => onChange('description', event.target.value)}
+          placeholder="Descripción"
+          rows={3}
+          className="input"
+        />
+        <select value={form.courseId} onChange={(event) => onChange('courseId', event.target.value)} className="input">
+          {mockCourses.map((course) => (
+            <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
+          ))}
+        </select>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select value={form.linkType} onChange={(event) => onChange('linkType', event.target.value as TaskLinkType)} className="input">
+            <option value="curso">Curso</option>
+            <option value="hito">Hito</option>
+            <option value="instancia">Instancia</option>
+            <option value="documento">Documento</option>
+            <option value="general">General</option>
+          </select>
+          <input value={form.relatedLabel} onChange={(event) => onChange('relatedLabel', event.target.value)} placeholder="Etiqueta vínculo" className="input" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input type="date" value={form.dueDate} onChange={(event) => onChange('dueDate', event.target.value)} className="input" />
+          <select value={form.priority} onChange={(event) => onChange('priority', event.target.value as TaskPriority)} className="input">
+            <option value="critica">Crítica</option>
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select value={form.status} onChange={(event) => onChange('status', event.target.value as TaskStatus)} className="input">
+            <option value="pendiente">Pendiente</option>
+            <option value="en_curso">En curso</option>
+            <option value="bloqueada">Bloqueada</option>
+            <option value="finalizada">Finalizada</option>
+          </select>
+          <input value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} placeholder="Responsable" className="input" />
+        </div>
+        <button type="submit" className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">
+          Crear tarea manual
+        </button>
+      </div>
+      <style jsx>{`
+        .input {
+          width: 100%;
+          border-radius: 0.75rem;
+          border: 1px solid rgb(51 65 85);
+          background: rgb(15 23 42);
+          padding: 0.75rem 0.875rem;
+          color: rgb(226 232 240);
+          outline: none;
+          font-size: 0.875rem;
+        }
+        .input:focus {
+          border-color: rgb(59 130 246);
+        }
+      `}</style>
+    </form>
   );
 }
 
