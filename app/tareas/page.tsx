@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   CourseTask,
   ManualTaskSeed,
@@ -19,6 +19,8 @@ import {
 import { mockCourses } from '../../lib/mockCourses';
 import { mockManualTasks } from '../../lib/mockTasks';
 import { formatCourseDate } from '../../lib/courseUtils';
+
+const MANUAL_TASKS_STORAGE_KEY = 'diena-control-360.manualTasks';
 
 type ManualTaskFormState = {
   title: string;
@@ -67,12 +69,42 @@ function statusLabel(status: TaskStatus): string {
   return status;
 }
 
+function readStoredManualTasks(): ManualTaskSeed[] {
+  if (typeof window === 'undefined') return mockManualTasks;
+
+  try {
+    const storedValue = window.localStorage.getItem(MANUAL_TASKS_STORAGE_KEY);
+    if (!storedValue) return mockManualTasks;
+    const parsed = JSON.parse(storedValue) as ManualTaskSeed[];
+    return Array.isArray(parsed) ? parsed : mockManualTasks;
+  } catch {
+    return mockManualTasks;
+  }
+}
+
+function writeStoredManualTasks(tasks: ManualTaskSeed[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(MANUAL_TASKS_STORAGE_KEY, JSON.stringify(tasks));
+}
+
 export default function TareasPage() {
   const [manualTasks, setManualTasks] = useState<ManualTaskSeed[]>(mockManualTasks);
+  const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
   const [form, setForm] = useState<ManualTaskFormState>(initialForm);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'todas'>('todas');
   const [sourceFilter, setSourceFilter] = useState<TaskSource | 'todas'>('todas');
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    setManualTasks(readStoredManualTasks());
+    setHasLoadedStorage(true);
+  }, []);
+
+  useEffect(() => {
+    if (hasLoadedStorage) {
+      writeStoredManualTasks(manualTasks);
+    }
+  }, [hasLoadedStorage, manualTasks]);
 
   const allTasks = useMemo(() => getCourseTasks(mockCourses, manualTasks), [manualTasks]);
 
@@ -134,13 +166,22 @@ export default function TareasPage() {
     setSourceFilter('manual');
   }
 
+  function deleteManualTask(taskId: string): void {
+    setManualTasks((current) => current.filter((task) => task.id !== taskId));
+  }
+
+  function resetManualTasks(): void {
+    setManualTasks(mockManualTasks);
+    setSourceFilter('manual');
+  }
+
   return (
     <section className="space-y-6">
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
         <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Ejecución</p>
         <h1 className="mt-3 text-3xl font-bold">Tareas operativas</h1>
         <p className="mt-3 max-w-4xl text-slate-300">
-          Bandeja unificada de tareas automáticas derivadas de hitos y tareas manuales vinculadas a cursos, instancias, documentos o asuntos generales.
+          Bandeja unificada de tareas automáticas derivadas de hitos y tareas manuales persistidas en el navegador.
         </p>
       </div>
 
@@ -193,7 +234,7 @@ export default function TareasPage() {
             <p className="mt-2 text-sm text-slate-400">Cada tarea conserva su origen, vínculo y trazabilidad operativa.</p>
           </div>
           <div className="divide-y divide-slate-800">
-            {filteredTasks.map((task) => <TaskCard key={task.id} task={task} />)}
+            {filteredTasks.map((task) => <TaskCard key={task.id} task={task} onDelete={deleteManualTask} />)}
             {!filteredTasks.length ? (
               <div className="p-8 text-center text-slate-400">No hay tareas que coincidan con los filtros aplicados.</div>
             ) : null}
@@ -203,7 +244,7 @@ export default function TareasPage() {
         <aside className="space-y-5">
           <Panel title="Hoy o vencidas" value={todayTasks.length} description="Tareas cuya fecha límite ya ha llegado o está vencida." tone="red" />
           <Panel title="Próximos 15 días" value={upcomingTasks.length} description="Tareas que conviene anticipar antes de que bloqueen el curso." tone="blue" />
-          <ManualTaskForm form={form} onChange={updateForm} onSubmit={createManualTask} />
+          <ManualTaskForm form={form} onChange={updateForm} onSubmit={createManualTask} onReset={resetManualTasks} />
         </aside>
       </div>
     </section>
@@ -214,28 +255,20 @@ function ManualTaskForm({
   form,
   onChange,
   onSubmit,
+  onReset,
 }: {
   form: ManualTaskFormState;
   onChange: <K extends keyof ManualTaskFormState>(field: K, value: ManualTaskFormState[K]) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onReset: () => void;
 }) {
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
       <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Crear tarea manual</p>
+      <p className="mt-2 text-xs text-slate-400">Las tareas manuales se guardan en localStorage hasta que conectemos base de datos.</p>
       <div className="mt-4 space-y-3">
-        <input
-          value={form.title}
-          onChange={(event) => onChange('title', event.target.value)}
-          placeholder="Título de la tarea"
-          className="input"
-        />
-        <textarea
-          value={form.description}
-          onChange={(event) => onChange('description', event.target.value)}
-          placeholder="Descripción"
-          rows={3}
-          className="input"
-        />
+        <input value={form.title} onChange={(event) => onChange('title', event.target.value)} placeholder="Título de la tarea" className="input" />
+        <textarea value={form.description} onChange={(event) => onChange('description', event.target.value)} placeholder="Descripción" rows={3} className="input" />
         <select value={form.courseId} onChange={(event) => onChange('courseId', event.target.value)} className="input">
           {mockCourses.map((course) => (
             <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
@@ -269,30 +302,18 @@ function ManualTaskForm({
           </select>
           <input value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} placeholder="Responsable" className="input" />
         </div>
-        <button type="submit" className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">
-          Crear tarea manual
-        </button>
+        <button type="submit" className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">Crear tarea manual</button>
+        <button type="button" onClick={onReset} className="w-full rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800">Restaurar tareas manuales demo</button>
       </div>
       <style jsx>{`
-        .input {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid rgb(51 65 85);
-          background: rgb(15 23 42);
-          padding: 0.75rem 0.875rem;
-          color: rgb(226 232 240);
-          outline: none;
-          font-size: 0.875rem;
-        }
-        .input:focus {
-          border-color: rgb(59 130 246);
-        }
+        .input { width: 100%; border-radius: 0.75rem; border: 1px solid rgb(51 65 85); background: rgb(15 23 42); padding: 0.75rem 0.875rem; color: rgb(226 232 240); outline: none; font-size: 0.875rem; }
+        .input:focus { border-color: rgb(59 130 246); }
       `}</style>
     </form>
   );
 }
 
-function TaskCard({ task }: { task: CourseTask }) {
+function TaskCard({ task, onDelete }: { task: CourseTask; onDelete: (taskId: string) => void }) {
   return (
     <div className="p-5">
       <div className={`rounded-2xl border p-5 ${priorityClass(task.priority)}`}>
@@ -309,9 +330,7 @@ function TaskCard({ task }: { task: CourseTask }) {
             <p className="mt-2 text-sm opacity-85">{task.description}</p>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
               {task.courseId ? (
-                <Link href={`/cursos/${task.courseId}`} className="font-semibold text-blue-200 hover:text-blue-100">
-                  {task.courseCode} · {task.courseName}
-                </Link>
+                <Link href={`/cursos/${task.courseId}`} className="font-semibold text-blue-200 hover:text-blue-100">{task.courseCode} · {task.courseName}</Link>
               ) : (
                 <span className="font-semibold text-slate-200">{task.relatedLabel}</span>
               )}
@@ -321,11 +340,8 @@ function TaskCard({ task }: { task: CourseTask }) {
           <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-left xl:text-right">
             <p className="text-xs uppercase tracking-wide text-slate-500">Fecha límite</p>
             <p className="mt-1 whitespace-nowrap font-bold text-slate-100">{formatCourseDate(task.dueDate)}</p>
-            {task.courseId ? (
-              <Link href={`/cursos/${task.courseId}`} className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">
-                Abrir curso
-              </Link>
-            ) : null}
+            {task.courseId ? <Link href={`/cursos/${task.courseId}`} className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">Abrir curso</Link> : null}
+            {task.source === 'manual' ? <button type="button" onClick={() => onDelete(task.id)} className="mt-3 block text-sm font-semibold text-red-300 hover:text-red-200 xl:ml-auto">Eliminar</button> : null}
           </div>
         </div>
       </div>
@@ -334,21 +350,10 @@ function TaskCard({ task }: { task: CourseTask }) {
 }
 
 function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-      <p className="text-sm text-slate-400">{label}</p>
-      <p className="mt-3 text-3xl font-bold">{value}</p>
-    </article>
-  );
+  return <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p></article>;
 }
 
 function Panel({ title, value, description, tone }: { title: string; value: number; description: string; tone: 'red' | 'blue' }) {
   const toneClass = tone === 'red' ? 'border-red-800 bg-red-950/30 text-red-100' : 'border-blue-800 bg-blue-950/30 text-blue-100';
-  return (
-    <article className={`rounded-2xl border p-5 shadow-xl ${toneClass}`}>
-      <p className="text-sm uppercase tracking-[0.3em] opacity-80">{title}</p>
-      <p className="mt-3 text-4xl font-bold">{value}</p>
-      <p className="mt-2 text-sm opacity-85">{description}</p>
-    </article>
-  );
+  return <article className={`rounded-2xl border p-5 shadow-xl ${toneClass}`}><p className="text-sm uppercase tracking-[0.3em] opacity-80">{title}</p><p className="mt-3 text-4xl font-bold">{value}</p><p className="mt-2 text-sm opacity-85">{description}</p></article>;
 }
