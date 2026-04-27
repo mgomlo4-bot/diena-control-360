@@ -15,7 +15,7 @@ import { applyQuickFilter, QuickFilter, searchCourses } from '../../lib/courseSe
 import { coursesToCsv } from '../../lib/courseExport';
 import { getHighestAlertLevel } from '../../lib/courseAlerts';
 import { formatCourseDate } from '../../lib/courseUtils';
-import { readStoredCourses, resetStoredCourses, writeStoredCourses } from '../../lib/localStorage';
+import { getCourses, resetCourses as resetCoursesRepository, saveCourses } from '../../lib/dataRepository';
 
 const quickFilters: { id: QuickFilter; label: string }[] = [
   { id: 'todos', label: 'Todos' },
@@ -43,7 +43,8 @@ function alertBadgeClass(level: string): string {
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>(mockCourses);
-  const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState(mockCourses[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
@@ -51,15 +52,27 @@ export default function CoursesPage() {
   const selectedCourse = courses.find((course) => course.id === selectedCourseId) ?? courses[0];
 
   useEffect(() => {
-    const storedCourses = readStoredCourses();
-    setCourses(storedCourses);
-    if (storedCourses[0]?.id) setSelectedCourseId(storedCourses[0].id);
-    setHasLoadedStorage(true);
+    async function loadCourses() {
+      try {
+        const loadedCourses = await getCourses();
+        setCourses(loadedCourses);
+        if (loadedCourses[0]?.id) setSelectedCourseId(loadedCourses[0].id);
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : 'No se pudieron cargar los cursos.');
+      } finally {
+        setHasLoaded(true);
+      }
+    }
+
+    loadCourses();
   }, []);
 
   useEffect(() => {
-    if (hasLoadedStorage) writeStoredCourses(courses);
-  }, [courses, hasLoadedStorage]);
+    if (hasLoaded) {
+      saveCourses(courses).catch((error) => setLoadError(error instanceof Error ? error.message : 'No se pudieron guardar los cursos.'));
+    }
+  }, [courses, hasLoaded]);
 
   const filteredCourses = useMemo(() => applyQuickFilter(searchCourses(courses, query), quickFilter), [courses, query, quickFilter]);
 
@@ -105,12 +118,17 @@ export default function CoursesPage() {
     }));
   }
 
-  function resetCourses(): void {
-    const resetCoursesValue = resetStoredCourses();
-    setCourses(resetCoursesValue);
-    setSelectedCourseId(resetCoursesValue[0]?.id ?? '');
-    setQuickFilter('todos');
-    setQuery('');
+  async function resetCourses(): Promise<void> {
+    try {
+      const resetCoursesValue = await resetCoursesRepository();
+      setCourses(resetCoursesValue);
+      setSelectedCourseId(resetCoursesValue[0]?.id ?? '');
+      setQuickFilter('todos');
+      setQuery('');
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'No se pudo restaurar la demo.');
+    }
   }
 
   function exportVisibleCourses(): void {
@@ -133,7 +151,8 @@ export default function CoursesPage() {
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Módulo operativo</p>
           <h1 className="mt-2 text-3xl font-bold">Control de cursos</h1>
-          <p className="mt-2 max-w-4xl text-slate-400">Buscador, filtros rápidos, exportación y seguimiento automático por hitos. Los cambios se guardan mediante la capa centralizada de almacenamiento local.</p>
+          <p className="mt-2 max-w-4xl text-slate-400">Buscador, filtros rápidos, exportación y seguimiento automático por hitos. Datos gestionados mediante dataRepository.</p>
+          {loadError ? <p className="mt-3 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-100">{loadError}</p> : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <Kpi label="Cursos activos" value={totals.active} />
@@ -151,50 +170,19 @@ export default function CoursesPage() {
           <button type="button" onClick={resetCourses} className="rounded-xl border border-red-800 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40">Restaurar demo</button>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {quickFilters.map((filter) => (
-            <button key={filter.id} type="button" onClick={() => setQuickFilter(filter.id)} className={`rounded-full px-3 py-2 text-xs font-semibold transition ${quickFilter === filter.id ? 'bg-blue-600 text-white' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}>{filter.label}</button>
-          ))}
+          {quickFilters.map((filter) => <button key={filter.id} type="button" onClick={() => setQuickFilter(filter.id)} className={`rounded-full px-3 py-2 text-xs font-semibold transition ${quickFilter === filter.id ? 'bg-blue-600 text-white' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}>{filter.label}</button>)}
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
         <div className="border-b border-slate-800 px-5 py-4"><h2 className="text-lg font-semibold">Listado general</h2><p className="text-sm text-slate-400">Pulsa la fila para previsualizar. Pulsa el código para abrir la ficha completa.</p></div>
-        <div className="overflow-x-auto">
-          <table className={`min-w-full divide-y divide-slate-800 text-sm ${compactView ? 'text-xs' : ''}`}>
-            <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400"><tr><th className="px-4 py-3">Código</th><th className="px-4 py-3">Curso</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Inicio</th><th className="px-4 py-3">Fin</th><th className="px-4 py-3">Último hito</th><th className="px-4 py-3">Siguiente hito</th><th className="px-4 py-3">Fecha hito</th><th className="px-4 py-3">Alerta</th></tr></thead>
-            <tbody className="divide-y divide-slate-800">
-              {filteredCourses.map((course) => {
-                const last = getLastCompletedMilestone(course.milestones);
-                const next = getNextPendingMilestone(course.milestones);
-                const overdue = isMilestoneOverdue(next);
-                const isSelected = course.id === selectedCourse.id;
-                const alertLevel = getHighestAlertLevel(course);
-                return (
-                  <tr key={course.id} onClick={() => setSelectedCourseId(course.id)} className={`cursor-pointer transition hover:bg-slate-800/70 ${isSelected ? 'bg-blue-950/40' : ''}`}>
-                    <td className={`whitespace-nowrap px-4 font-semibold text-blue-200 ${compactView ? 'py-2' : 'py-3'}`}><Link href={`/cursos/${course.id}`} className="rounded-lg px-2 py-1 text-blue-200 underline-offset-4 hover:bg-blue-950 hover:text-blue-100 hover:underline" onClick={(event) => event.stopPropagation()}>{course.code}</Link></td>
-                    <td className="min-w-72 px-4 py-3">{course.name}</td>
-                    <td className="px-4 py-3"><span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300">{course.status}</span></td>
-                    <td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.startDate)}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.endDate)}</td>
-                    <td className="min-w-56 px-4 py-3 text-slate-300">{last?.name ?? 'Sin hitos completados'}</td>
-                    <td className="min-w-72 px-4 py-3 font-medium text-slate-100">{next?.name ?? 'Seguimiento completado'}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{next ? formatCourseDate(next.calculatedDate) : '-'}</td>
-                    <td className="px-4 py-3"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${overdue ? 'bg-red-900 text-red-100' : alertBadgeClass(alertLevel)}`}>{next ? (overdue ? 'Vencido' : alertLevel) : 'Completado'}</span></td>
-                  </tr>
-                );
-              })}
-              {!filteredCourses.length ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No hay cursos que coincidan con la búsqueda o el filtro aplicado.</td></tr> : null}
-            </tbody>
-          </table>
-        </div>
+        <div className="overflow-x-auto"><table className={`min-w-full divide-y divide-slate-800 text-sm ${compactView ? 'text-xs' : ''}`}><thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400"><tr><th className="px-4 py-3">Código</th><th className="px-4 py-3">Curso</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Inicio</th><th className="px-4 py-3">Fin</th><th className="px-4 py-3">Último hito</th><th className="px-4 py-3">Siguiente hito</th><th className="px-4 py-3">Fecha hito</th><th className="px-4 py-3">Alerta</th></tr></thead><tbody className="divide-y divide-slate-800">{filteredCourses.map((course) => { const last = getLastCompletedMilestone(course.milestones); const next = getNextPendingMilestone(course.milestones); const overdue = isMilestoneOverdue(next); const isSelected = course.id === selectedCourse.id; const alertLevel = getHighestAlertLevel(course); return <tr key={course.id} onClick={() => setSelectedCourseId(course.id)} className={`cursor-pointer transition hover:bg-slate-800/70 ${isSelected ? 'bg-blue-950/40' : ''}`}><td className={`whitespace-nowrap px-4 font-semibold text-blue-200 ${compactView ? 'py-2' : 'py-3'}`}><Link href={`/cursos/${course.id}`} className="rounded-lg px-2 py-1 text-blue-200 underline-offset-4 hover:bg-blue-950 hover:text-blue-100 hover:underline" onClick={(event) => event.stopPropagation()}>{course.code}</Link></td><td className="min-w-72 px-4 py-3">{course.name}</td><td className="px-4 py-3"><span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300">{course.status}</span></td><td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.startDate)}</td><td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.endDate)}</td><td className="min-w-56 px-4 py-3 text-slate-300">{last?.name ?? 'Sin hitos completados'}</td><td className="min-w-72 px-4 py-3 font-medium text-slate-100">{next?.name ?? 'Seguimiento completado'}</td><td className="whitespace-nowrap px-4 py-3">{next ? formatCourseDate(next.calculatedDate) : '-'}</td><td className="px-4 py-3"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${overdue ? 'bg-red-900 text-red-100' : alertBadgeClass(alertLevel)}`}>{next ? (overdue ? 'Vencido' : alertLevel) : 'Completado'}</span></td></tr>; })}{!filteredCourses.length ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No hay cursos que coincidan con la búsqueda o el filtro aplicado.</td></tr> : null}</tbody></table></div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
         <aside className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl"><h2 className="text-lg font-semibold">Datos del curso</h2><p className="mt-1 text-sm text-slate-400">Al cambiar fechas, se recalculan los hitos automáticos conservando lo marcado.</p><div className="mt-5 space-y-4"><Field label="Código del curso"><input className="input" value={selectedCourse.code} onChange={(event) => updateCourseField('code', event.target.value)} /></Field><Field label="Nombre del curso"><input className="input" value={selectedCourse.name} onChange={(event) => updateCourseField('name', event.target.value)} /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Fecha inicio"><input className="input" type="date" value={selectedCourse.startDate} onChange={(event) => updateCourseField('startDate', event.target.value)} /></Field><Field label="Fecha fin"><input className="input" type="date" value={selectedCourse.endDate} onChange={(event) => updateCourseField('endDate', event.target.value)} /></Field></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900" checked={selectedCourse.requiresMedicalAndPhysical} onChange={(event) => updateCourseField('requiresMedicalAndPhysical', event.target.checked)} /><span><span className="block font-semibold text-slate-100">Requiere pruebas físicas y reconocimiento médico</span><span className="mt-1 block text-slate-400">Al activarlo se inserta el hito T-5 de recepción de resultados antes de la propuesta de nombramiento.</span></span></label><button type="button" onClick={regenerateMilestones} className="w-full rounded-xl border border-blue-700 bg-blue-950 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-900">Regenerar hitos desde fechas del curso</button><Link href={`/cursos/${selectedCourse.id}`} className="block w-full rounded-xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-950 transition hover:bg-white">Abrir ficha completa del curso</Link></div></aside>
-
         <article className="rounded-2xl border border-slate-800 bg-slate-900 shadow-xl"><div className="border-b border-slate-800 p-5"><p className="text-sm uppercase tracking-[0.25em] text-blue-300">Vista rápida</p><h2 className="mt-2 text-2xl font-bold">Seguimiento de hitos del curso</h2><div className="mt-4 grid gap-3 md:grid-cols-2"><SummaryCard label="Último hito completado" value={selectedLast?.name ?? 'Sin hitos completados'} /><SummaryCard label="Siguiente hito pendiente" value={selectedNext?.name ?? 'Seguimiento completado'} alert={isMilestoneOverdue(selectedNext)} /></div></div><div className="divide-y divide-slate-800">{selectedCourse.milestones.map((milestone) => { const isNext = selectedNext?.id === milestone.id; return <div key={milestone.id} className={`p-4 ${isNext ? 'bg-blue-950/20' : ''}`}><div className={`rounded-2xl border p-4 ${statusClass(milestone, isNext)}`}><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><label className="flex min-w-0 flex-1 cursor-pointer items-start gap-4"><input type="checkbox" checked={milestone.completed} onChange={() => toggleMilestone(milestone.id)} className="mt-1 h-5 w-5 rounded border-slate-600 bg-slate-950" /><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-blue-200">{milestone.relativeCode}</span><span className="font-semibold">{milestone.name}</span>{isNext && !milestone.completed ? <span className="rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">Próximo hito</span> : null}</span><span className="mt-2 block text-sm opacity-80">Referencia: {milestone.reference === 'INICIO_CURSO' ? 'inicio del curso' : 'fin del curso'} · Desplazamiento: {milestone.offsetDays} días · Fecha: {formatCourseDate(milestone.calculatedDate)}</span></span></label><span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold">{milestone.completed ? 'Completado' : isMilestoneOverdue(milestone) ? 'Vencido' : 'Pendiente'}</span></div><input className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500" placeholder="Observaciones del hito" value={milestone.observations ?? ''} onChange={(event) => updateMilestoneObservation(milestone.id, event.target.value)} /></div></div>; })}</div></article>
       </div>
-
       <style jsx>{`.input { width: 100%; border-radius: 0.75rem; border: 1px solid rgb(51 65 85); background: rgb(15 23 42); padding: 0.75rem 0.875rem; color: rgb(226 232 240); outline: none; } .input:focus { border-color: rgb(59 130 246); }`}</style>
     </section>
   );
