@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos globales adicionales */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Personalización de scroll bar en modo oscuro */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
