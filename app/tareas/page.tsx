@@ -19,8 +19,7 @@ import {
 import { mockCourses } from '../../lib/mockCourses';
 import { mockManualTasks } from '../../lib/mockTasks';
 import { formatCourseDate } from '../../lib/courseUtils';
-
-const MANUAL_TASKS_STORAGE_KEY = 'diena-control-360.manualTasks';
+import { readStoredManualTasks, resetStoredManualTasks, writeStoredManualTasks } from '../../lib/localStorage';
 
 type ManualTaskFormState = {
   title: string;
@@ -69,24 +68,6 @@ function statusLabel(status: TaskStatus): string {
   return status;
 }
 
-function readStoredManualTasks(): ManualTaskSeed[] {
-  if (typeof window === 'undefined') return mockManualTasks;
-
-  try {
-    const storedValue = window.localStorage.getItem(MANUAL_TASKS_STORAGE_KEY);
-    if (!storedValue) return mockManualTasks;
-    const parsed = JSON.parse(storedValue) as ManualTaskSeed[];
-    return Array.isArray(parsed) ? parsed : mockManualTasks;
-  } catch {
-    return mockManualTasks;
-  }
-}
-
-function writeStoredManualTasks(tasks: ManualTaskSeed[]): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MANUAL_TASKS_STORAGE_KEY, JSON.stringify(tasks));
-}
-
 export default function TareasPage() {
   const [manualTasks, setManualTasks] = useState<ManualTaskSeed[]>(mockManualTasks);
   const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
@@ -101,9 +82,7 @@ export default function TareasPage() {
   }, []);
 
   useEffect(() => {
-    if (hasLoadedStorage) {
-      writeStoredManualTasks(manualTasks);
-    }
+    if (hasLoadedStorage) writeStoredManualTasks(manualTasks);
   }, [hasLoadedStorage, manualTasks]);
 
   const allTasks = useMemo(() => getCourseTasks(mockCourses, manualTasks), [manualTasks]);
@@ -115,17 +94,7 @@ export default function TareasPage() {
     if (!cleanQuery) return bySource;
 
     return bySource.filter((task) =>
-      [
-        task.title,
-        task.description,
-        task.courseCode ?? '',
-        task.courseName ?? '',
-        task.responsible,
-        task.relatedLabel,
-        task.linkType,
-        task.priority,
-        task.status,
-      ]
+      [task.title, task.description, task.courseCode ?? '', task.courseName ?? '', task.responsible, task.relatedLabel, task.linkType, task.priority, task.status]
         .join(' ')
         .toLowerCase()
         .includes(cleanQuery),
@@ -171,7 +140,7 @@ export default function TareasPage() {
   }
 
   function resetManualTasks(): void {
-    setManualTasks(mockManualTasks);
+    setManualTasks(resetStoredManualTasks());
     setSourceFilter('manual');
   }
 
@@ -180,9 +149,7 @@ export default function TareasPage() {
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
         <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Ejecución</p>
         <h1 className="mt-3 text-3xl font-bold">Tareas operativas</h1>
-        <p className="mt-3 max-w-4xl text-slate-300">
-          Bandeja unificada de tareas automáticas derivadas de hitos y tareas manuales persistidas en el navegador.
-        </p>
+        <p className="mt-3 max-w-4xl text-slate-300">Bandeja unificada de tareas automáticas derivadas de hitos y tareas manuales persistidas mediante almacenamiento local centralizado.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
@@ -197,47 +164,22 @@ export default function TareasPage() {
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
         <div className="grid gap-4 xl:grid-cols-[1fr_auto_auto] xl:items-center">
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por curso, tarea, responsable, vínculo, instancia, documento..."
-            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500"
-          />
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'todas')}
-            className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500"
-          >
-            <option value="todas">Todos los estados</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="en_curso">En curso</option>
-            <option value="bloqueada">Bloqueada</option>
-            <option value="finalizada">Finalizada</option>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por curso, tarea, responsable, vínculo, instancia, documento..." className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500" />
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'todas')} className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500">
+            <option value="todas">Todos los estados</option><option value="pendiente">Pendiente</option><option value="en_curso">En curso</option><option value="bloqueada">Bloqueada</option><option value="finalizada">Finalizada</option>
           </select>
-          <select
-            value={sourceFilter}
-            onChange={(event) => setSourceFilter(event.target.value as TaskSource | 'todas')}
-            className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500"
-          >
-            <option value="todas">Todos los orígenes</option>
-            <option value="hito_automatico">Hitos automáticos</option>
-            <option value="manual">Manuales</option>
+          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as TaskSource | 'todas')} className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500">
+            <option value="todas">Todos los orígenes</option><option value="hito_automatico">Hitos automáticos</option><option value="manual">Manuales</option>
           </select>
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
         <article className="rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
-          <div className="border-b border-slate-800 p-5">
-            <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Bandeja principal</p>
-            <h2 className="mt-2 text-2xl font-bold">Qué hay que ejecutar</h2>
-            <p className="mt-2 text-sm text-slate-400">Cada tarea conserva su origen, vínculo y trazabilidad operativa.</p>
-          </div>
+          <div className="border-b border-slate-800 p-5"><p className="text-sm uppercase tracking-[0.3em] text-blue-300">Bandeja principal</p><h2 className="mt-2 text-2xl font-bold">Qué hay que ejecutar</h2><p className="mt-2 text-sm text-slate-400">Cada tarea conserva su origen, vínculo y trazabilidad operativa.</p></div>
           <div className="divide-y divide-slate-800">
             {filteredTasks.map((task) => <TaskCard key={task.id} task={task} onDelete={deleteManualTask} />)}
-            {!filteredTasks.length ? (
-              <div className="p-8 text-center text-slate-400">No hay tareas que coincidan con los filtros aplicados.</div>
-            ) : null}
+            {!filteredTasks.length ? <div className="p-8 text-center text-slate-400">No hay tareas que coincidan con los filtros aplicados.</div> : null}
           </div>
         </article>
 
@@ -251,109 +193,12 @@ export default function TareasPage() {
   );
 }
 
-function ManualTaskForm({
-  form,
-  onChange,
-  onSubmit,
-  onReset,
-}: {
-  form: ManualTaskFormState;
-  onChange: <K extends keyof ManualTaskFormState>(field: K, value: ManualTaskFormState[K]) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onReset: () => void;
-}) {
+function ManualTaskForm({ form, onChange, onSubmit, onReset }: { form: ManualTaskFormState; onChange: <K extends keyof ManualTaskFormState>(field: K, value: ManualTaskFormState[K]) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onReset: () => void; }) {
   return (
-    <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
-      <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Crear tarea manual</p>
-      <p className="mt-2 text-xs text-slate-400">Las tareas manuales se guardan en localStorage hasta que conectemos base de datos.</p>
-      <div className="mt-4 space-y-3">
-        <input value={form.title} onChange={(event) => onChange('title', event.target.value)} placeholder="Título de la tarea" className="input" />
-        <textarea value={form.description} onChange={(event) => onChange('description', event.target.value)} placeholder="Descripción" rows={3} className="input" />
-        <select value={form.courseId} onChange={(event) => onChange('courseId', event.target.value)} className="input">
-          {mockCourses.map((course) => (
-            <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
-          ))}
-        </select>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <select value={form.linkType} onChange={(event) => onChange('linkType', event.target.value as TaskLinkType)} className="input">
-            <option value="curso">Curso</option>
-            <option value="hito">Hito</option>
-            <option value="instancia">Instancia</option>
-            <option value="documento">Documento</option>
-            <option value="general">General</option>
-          </select>
-          <input value={form.relatedLabel} onChange={(event) => onChange('relatedLabel', event.target.value)} placeholder="Etiqueta vínculo" className="input" />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input type="date" value={form.dueDate} onChange={(event) => onChange('dueDate', event.target.value)} className="input" />
-          <select value={form.priority} onChange={(event) => onChange('priority', event.target.value as TaskPriority)} className="input">
-            <option value="critica">Crítica</option>
-            <option value="alta">Alta</option>
-            <option value="media">Media</option>
-            <option value="baja">Baja</option>
-          </select>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <select value={form.status} onChange={(event) => onChange('status', event.target.value as TaskStatus)} className="input">
-            <option value="pendiente">Pendiente</option>
-            <option value="en_curso">En curso</option>
-            <option value="bloqueada">Bloqueada</option>
-            <option value="finalizada">Finalizada</option>
-          </select>
-          <input value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} placeholder="Responsable" className="input" />
-        </div>
-        <button type="submit" className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">Crear tarea manual</button>
-        <button type="button" onClick={onReset} className="w-full rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800">Restaurar tareas manuales demo</button>
-      </div>
-      <style jsx>{`
-        .input { width: 100%; border-radius: 0.75rem; border: 1px solid rgb(51 65 85); background: rgb(15 23 42); padding: 0.75rem 0.875rem; color: rgb(226 232 240); outline: none; font-size: 0.875rem; }
-        .input:focus { border-color: rgb(59 130 246); }
-      `}</style>
-    </form>
+    <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl"><p className="text-sm uppercase tracking-[0.3em] text-blue-300">Crear tarea manual</p><p className="mt-2 text-xs text-slate-400">Las tareas manuales se guardan mediante la capa común de almacenamiento local.</p><div className="mt-4 space-y-3"><input value={form.title} onChange={(event) => onChange('title', event.target.value)} placeholder="Título de la tarea" className="input" /><textarea value={form.description} onChange={(event) => onChange('description', event.target.value)} placeholder="Descripción" rows={3} className="input" /><select value={form.courseId} onChange={(event) => onChange('courseId', event.target.value)} className="input">{mockCourses.map((course) => <option key={course.id} value={course.id}>{course.code} - {course.name}</option>)}</select><div className="grid gap-3 sm:grid-cols-2"><select value={form.linkType} onChange={(event) => onChange('linkType', event.target.value as TaskLinkType)} className="input"><option value="curso">Curso</option><option value="hito">Hito</option><option value="instancia">Instancia</option><option value="documento">Documento</option><option value="general">General</option></select><input value={form.relatedLabel} onChange={(event) => onChange('relatedLabel', event.target.value)} placeholder="Etiqueta vínculo" className="input" /></div><div className="grid gap-3 sm:grid-cols-2"><input type="date" value={form.dueDate} onChange={(event) => onChange('dueDate', event.target.value)} className="input" /><select value={form.priority} onChange={(event) => onChange('priority', event.target.value as TaskPriority)} className="input"><option value="critica">Crítica</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></div><div className="grid gap-3 sm:grid-cols-2"><select value={form.status} onChange={(event) => onChange('status', event.target.value as TaskStatus)} className="input"><option value="pendiente">Pendiente</option><option value="en_curso">En curso</option><option value="bloqueada">Bloqueada</option><option value="finalizada">Finalizada</option></select><input value={form.responsible} onChange={(event) => onChange('responsible', event.target.value)} placeholder="Responsable" className="input" /></div><button type="submit" className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500">Crear tarea manual</button><button type="button" onClick={onReset} className="w-full rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800">Restaurar tareas manuales demo</button></div><style jsx>{`.input { width: 100%; border-radius: 0.75rem; border: 1px solid rgb(51 65 85); background: rgb(15 23 42); padding: 0.75rem 0.875rem; color: rgb(226 232 240); outline: none; font-size: 0.875rem; } .input:focus { border-color: rgb(59 130 246); }`}</style></form>
   );
 }
 
-function TaskCard({ task, onDelete }: { task: CourseTask; onDelete: (taskId: string) => void }) {
-  return (
-    <div className="p-5">
-      <div className={`rounded-2xl border p-5 ${priorityClass(task.priority)}`}>
-        <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${priorityBadge(task.priority)}`}>{task.priority}</span>
-              <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-blue-200">{sourceLabel(task.source)}</span>
-              <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-300">{statusLabel(task.status)}</span>
-              <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-300">{task.linkType}</span>
-              {task.milestoneCode ? <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-blue-200">{task.milestoneCode}</span> : null}
-            </div>
-            <h3 className="mt-3 text-lg font-semibold">{task.title}</h3>
-            <p className="mt-2 text-sm opacity-85">{task.description}</p>
-            <div className="mt-4 flex flex-wrap gap-3 text-sm">
-              {task.courseId ? (
-                <Link href={`/cursos/${task.courseId}`} className="font-semibold text-blue-200 hover:text-blue-100">{task.courseCode} · {task.courseName}</Link>
-              ) : (
-                <span className="font-semibold text-slate-200">{task.relatedLabel}</span>
-              )}
-              <span className="text-slate-400">Responsable: {task.responsible}</span>
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-left xl:text-right">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Fecha límite</p>
-            <p className="mt-1 whitespace-nowrap font-bold text-slate-100">{formatCourseDate(task.dueDate)}</p>
-            {task.courseId ? <Link href={`/cursos/${task.courseId}`} className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">Abrir curso</Link> : null}
-            {task.source === 'manual' ? <button type="button" onClick={() => onDelete(task.id)} className="mt-3 block text-sm font-semibold text-red-300 hover:text-red-200 xl:ml-auto">Eliminar</button> : null}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Kpi({ label, value }: { label: string; value: number }) {
-  return <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p></article>;
-}
-
-function Panel({ title, value, description, tone }: { title: string; value: number; description: string; tone: 'red' | 'blue' }) {
-  const toneClass = tone === 'red' ? 'border-red-800 bg-red-950/30 text-red-100' : 'border-blue-800 bg-blue-950/30 text-blue-100';
-  return <article className={`rounded-2xl border p-5 shadow-xl ${toneClass}`}><p className="text-sm uppercase tracking-[0.3em] opacity-80">{title}</p><p className="mt-3 text-4xl font-bold">{value}</p><p className="mt-2 text-sm opacity-85">{description}</p></article>;
-}
+function TaskCard({ task, onDelete }: { task: CourseTask; onDelete: (taskId: string) => void }) { return <div className="p-5"><div className={`rounded-2xl border p-5 ${priorityClass(task.priority)}`}><div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${priorityBadge(task.priority)}`}>{task.priority}</span><span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-blue-200">{sourceLabel(task.source)}</span><span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-300">{statusLabel(task.status)}</span><span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-300">{task.linkType}</span>{task.milestoneCode ? <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-blue-200">{task.milestoneCode}</span> : null}</div><h3 className="mt-3 text-lg font-semibold">{task.title}</h3><p className="mt-2 text-sm opacity-85">{task.description}</p><div className="mt-4 flex flex-wrap gap-3 text-sm">{task.courseId ? <Link href={`/cursos/${task.courseId}`} className="font-semibold text-blue-200 hover:text-blue-100">{task.courseCode} · {task.courseName}</Link> : <span className="font-semibold text-slate-200">{task.relatedLabel}</span>}<span className="text-slate-400">Responsable: {task.responsible}</span></div></div><div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-left xl:text-right"><p className="text-xs uppercase tracking-wide text-slate-500">Fecha límite</p><p className="mt-1 whitespace-nowrap font-bold text-slate-100">{formatCourseDate(task.dueDate)}</p>{task.courseId ? <Link href={`/cursos/${task.courseId}`} className="mt-3 inline-flex text-sm font-semibold text-blue-300 hover:text-blue-200">Abrir curso</Link> : null}{task.source === 'manual' ? <button type="button" onClick={() => onDelete(task.id)} className="mt-3 block text-sm font-semibold text-red-300 hover:text-red-200 xl:ml-auto">Eliminar</button> : null}</div></div></div></div>; }
+function Kpi({ label, value }: { label: string; value: number }) { return <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-3 text-3xl font-bold">{value}</p></article>; }
+function Panel({ title, value, description, tone }: { title: string; value: number; description: string; tone: 'red' | 'blue' }) { const toneClass = tone === 'red' ? 'border-red-800 bg-red-950/30 text-red-100' : 'border-blue-800 bg-blue-950/30 text-blue-100'; return <article className={`rounded-2xl border p-5 shadow-xl ${toneClass}`}><p className="text-sm uppercase tracking-[0.3em] opacity-80">{title}</p><p className="mt-3 text-4xl font-bold">{value}</p><p className="mt-2 text-sm opacity-85">{description}</p></article>; }
