@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
   Course,
@@ -9,71 +10,21 @@ import {
   getNextPendingMilestone,
   isMilestoneOverdue,
 } from '../../lib/courseMilestones';
+import { mockCourses } from '../../lib/mockCourses';
+import { applyQuickFilter, QuickFilter, searchCourses } from '../../lib/courseSearch';
+import { coursesToCsv } from '../../lib/courseExport';
+import { getHighestAlertLevel } from '../../lib/courseAlerts';
+import { formatCourseDate } from '../../lib/courseUtils';
 
-const initialCourses: Course[] = [
-  buildCourse({
-    id: 'ecom-tci-2026',
-    code: '60046 2026 001',
-    name: 'ECOM TCI para Suboficiales',
-    status: 'ACTIVADO',
-    type: 'ECOM',
-    modality: 'Mixto',
-    school: 'Escuela Antonio de Escaño',
-    startDate: '2026-09-14',
-    endDate: '2026-10-09',
-    active: true,
-    requiresMedicalAndPhysical: false,
-    appointedStudents: 24,
-    droppedStudents: 1,
-    graduatedStudents: 0,
-    graduatedWomen: 0,
-  }),
-  buildCourse({
-    id: 'ecom-seg-2026',
-    code: '60181 2026 001',
-    name: 'ECOM SEG para Suboficiales',
-    status: 'PENDIENTE PRUEBAS FISICAS Y RECONOCIMIENTO MEDICO',
-    type: 'ECOM',
-    modality: 'Presencial',
-    school: 'CESUPAR',
-    startDate: '2026-06-22',
-    endDate: '2026-07-03',
-    active: true,
-    requiresMedicalAndPhysical: true,
-    appointedStudents: 18,
-    droppedStudents: 0,
-    graduatedStudents: 0,
-    graduatedWomen: 0,
-  }),
-  buildCourse({
-    id: 'e2t-tci-ciber-2026',
-    code: '62T04 2026 001',
-    name: 'E2T TCI-Ciber para Oficiales',
-    status: 'PENDIENTE DE NOMBRAMIENTO DE ALUMNOS',
-    type: 'E2T',
-    modality: 'Mixto',
-    school: 'DIENA / Defensa',
-    startDate: '2026-11-02',
-    endDate: '2026-12-18',
-    active: true,
-    requiresMedicalAndPhysical: false,
-    appointedStudents: 12,
-    droppedStudents: 0,
-    graduatedStudents: 0,
-    graduatedWomen: 0,
-  }),
+const quickFilters: { id: QuickFilter; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'activos', label: 'Activos' },
+  { id: 'vencidos', label: 'Hitos vencidos' },
+  { id: 'proximos30', label: 'Próximos 30 días' },
+  { id: 'pendienteBod', label: 'Pendientes BOD' },
+  { id: 'reconocimientoMedico', label: 'Reconocimiento médico' },
+  { id: 'seguimientoCompletado', label: 'Seguimiento completado' },
 ];
-
-function buildCourse(course: Omit<Course, 'milestones'>): Course {
-  return {
-    ...course,
-    milestones: generateCourseMilestones(course.startDate, course.endDate, course.requiresMedicalAndPhysical),
-  };
-}
-
-function formatDate(date: string): string {
-  return new Intl.DateTimeFormat('es-ES').format(new Date(`${date}T00:00:00`));
-}
 
 function statusClass(milestone: CourseMilestone, isNext: boolean): string {
   if (milestone.completed) return 'border-emerald-700 bg-emerald-950/40 text-emerald-200';
@@ -82,10 +33,24 @@ function statusClass(milestone: CourseMilestone, isNext: boolean): string {
   return 'border-slate-700 bg-slate-900 text-slate-300';
 }
 
+function alertBadgeClass(level: string): string {
+  if (level === 'critica') return 'bg-red-900 text-red-100';
+  if (level === 'alta') return 'bg-orange-900 text-orange-100';
+  if (level === 'media') return 'bg-yellow-900 text-yellow-100';
+  return 'bg-emerald-900 text-emerald-100';
+}
+
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>(initialCourses);
-  const [selectedCourseId, setSelectedCourseId] = useState(initialCourses[0]?.id ?? '');
+  const [courses, setCourses] = useState<Course[]>(mockCourses);
+  const [selectedCourseId, setSelectedCourseId] = useState(mockCourses[0]?.id ?? '');
+  const [query, setQuery] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('todos');
+  const [compactView, setCompactView] = useState(false);
   const selectedCourse = courses.find((course) => course.id === selectedCourseId) ?? courses[0];
+
+  const filteredCourses = useMemo(() => {
+    return applyQuickFilter(searchCourses(courses, query), quickFilter);
+  }, [courses, query, quickFilter]);
 
   const totals = useMemo(() => {
     return {
@@ -95,8 +60,9 @@ export default function CoursesPage() {
         (sum, course) => sum + course.milestones.filter((milestone) => !milestone.completed).length,
         0,
       ),
+      visible: filteredCourses.length,
     };
-  }, [courses]);
+  }, [courses, filteredCourses.length]);
 
   function updateSelectedCourse(updater: (course: Course) => Course): void {
     setCourses((currentCourses) =>
@@ -149,6 +115,17 @@ export default function CoursesPage() {
     }));
   }
 
+  function exportVisibleCourses(): void {
+    const csv = coursesToCsv(filteredCourses);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'diena-control-360-cursos.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const selectedNext = getNextPendingMilestone(selectedCourse.milestones);
   const selectedLast = getLastCompletedMilestone(selectedCourse.milestones);
 
@@ -159,23 +136,63 @@ export default function CoursesPage() {
           <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Módulo operativo</p>
           <h1 className="mt-2 text-3xl font-bold">Control de cursos</h1>
           <p className="mt-2 max-w-4xl text-slate-400">
-            Cada curso genera automáticamente sus hitos administrativos a partir de la fecha de inicio y fin. Al marcar un hito, el sistema muestra el siguiente pendiente.
+            Buscador, filtros rápidos, exportación y seguimiento automático por hitos. El código del curso abre la ficha completa.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <Kpi label="Cursos activos" value={totals.active} />
+          <Kpi label="Visibles" value={totals.visible} />
           <Kpi label="Alumnos nombrados" value={totals.appointed} />
           <Kpi label="Hitos pendientes" value={totals.pendingMilestones} />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl">
+        <div className="grid gap-4 xl:grid-cols-[1fr_auto_auto] xl:items-center">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por código, nombre, estado, escuela, tipo o siguiente hito..."
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+          />
+          <button
+            type="button"
+            onClick={() => setCompactView((current) => !current)}
+            className="rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+          >
+            {compactView ? 'Vista normal' : 'Vista compacta'}
+          </button>
+          <button
+            type="button"
+            onClick={exportVisibleCourses}
+            className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+          >
+            Exportar cursos filtrados
+          </button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {quickFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => setQuickFilter(filter.id)}
+              className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                quickFilter === filter.id ? 'bg-blue-600 text-white' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
         <div className="border-b border-slate-800 px-5 py-4">
           <h2 className="text-lg font-semibold">Listado general</h2>
-          <p className="text-sm text-slate-400">Vista resumida con último hito completado y siguiente hito pendiente.</p>
+          <p className="text-sm text-slate-400">Pulsa la fila para previsualizar. Pulsa el código para abrir la ficha completa.</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <table className={`min-w-full divide-y divide-slate-800 text-sm ${compactView ? 'text-xs' : ''}`}>
             <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">Código</th>
@@ -186,47 +203,57 @@ export default function CoursesPage() {
                 <th className="px-4 py-3">Último hito</th>
                 <th className="px-4 py-3">Siguiente hito</th>
                 <th className="px-4 py-3">Fecha hito</th>
-                <th className="px-4 py-3">Aviso</th>
+                <th className="px-4 py-3">Alerta</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {courses.map((course) => {
+              {filteredCourses.map((course) => {
                 const last = getLastCompletedMilestone(course.milestones);
                 const next = getNextPendingMilestone(course.milestones);
                 const overdue = isMilestoneOverdue(next);
                 const isSelected = course.id === selectedCourse.id;
+                const alertLevel = getHighestAlertLevel(course);
                 return (
                   <tr
                     key={course.id}
                     onClick={() => setSelectedCourseId(course.id)}
                     className={`cursor-pointer transition hover:bg-slate-800/70 ${isSelected ? 'bg-blue-950/40' : ''}`}
                   >
-                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-200">{course.code}</td>
+                    <td className={`whitespace-nowrap px-4 font-semibold text-blue-200 ${compactView ? 'py-2' : 'py-3'}`}>
+                      <Link
+                        href={`/cursos/${course.id}`}
+                        className="rounded-lg px-2 py-1 text-blue-200 underline-offset-4 hover:bg-blue-950 hover:text-blue-100 hover:underline"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {course.code}
+                      </Link>
+                    </td>
                     <td className="min-w-72 px-4 py-3">{course.name}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300">
                         {course.status}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">{formatDate(course.startDate)}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{formatDate(course.endDate)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.startDate)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatCourseDate(course.endDate)}</td>
                     <td className="min-w-56 px-4 py-3 text-slate-300">{last?.name ?? 'Sin hitos completados'}</td>
                     <td className="min-w-72 px-4 py-3 font-medium text-slate-100">{next?.name ?? 'Seguimiento completado'}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{next ? formatDate(next.calculatedDate) : '-'}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{next ? formatCourseDate(next.calculatedDate) : '-'}</td>
                     <td className="px-4 py-3">
-                      {next ? (
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${overdue ? 'bg-red-900 text-red-100' : 'bg-blue-900 text-blue-100'}`}>
-                          {overdue ? 'Vencido' : 'Pendiente'}
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-emerald-900 px-3 py-1 text-xs font-semibold text-emerald-100">
-                          Completado
-                        </span>
-                      )}
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${overdue ? 'bg-red-900 text-red-100' : alertBadgeClass(alertLevel)}`}>
+                        {next ? (overdue ? 'Vencido' : alertLevel) : 'Completado'}
+                      </span>
                     </td>
                   </tr>
                 );
               })}
+              {!filteredCourses.length ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                    No hay cursos que coincidan con la búsqueda o el filtro aplicado.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -275,12 +302,18 @@ export default function CoursesPage() {
             >
               Regenerar hitos desde fechas del curso
             </button>
+            <Link
+              href={`/cursos/${selectedCourse.id}`}
+              className="block w-full rounded-xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-950 transition hover:bg-white"
+            >
+              Abrir ficha completa del curso
+            </Link>
           </div>
         </aside>
 
         <article className="rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
           <div className="border-b border-slate-800 p-5">
-            <p className="text-sm uppercase tracking-[0.25em] text-blue-300">Ficha detalle</p>
+            <p className="text-sm uppercase tracking-[0.25em] text-blue-300">Vista rápida</p>
             <h2 className="mt-2 text-2xl font-bold">Seguimiento de hitos del curso</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <SummaryCard label="Último hito completado" value={selectedLast?.name ?? 'Sin hitos completados'} />
@@ -315,7 +348,7 @@ export default function CoursesPage() {
                             ) : null}
                           </span>
                           <span className="mt-2 block text-sm opacity-80">
-                            Referencia: {milestone.reference === 'INICIO_CURSO' ? 'inicio del curso' : 'fin del curso'} · Desplazamiento: {milestone.offsetDays} días · Fecha: {formatDate(milestone.calculatedDate)}
+                            Referencia: {milestone.reference === 'INICIO_CURSO' ? 'inicio del curso' : 'fin del curso'} · Desplazamiento: {milestone.offsetDays} días · Fecha: {formatCourseDate(milestone.calculatedDate)}
                           </span>
                         </span>
                       </label>
