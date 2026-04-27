@@ -15,6 +15,7 @@ const navItems = [
   { href: '/tareas', label: 'Tareas' },
   { href: '/documentos', label: 'Documentos' },
   { href: '/asistente', label: 'Asistente' },
+  { href: '/respaldo', label: 'Respaldo' },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,11 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <nav className="space-y-2">
               {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
-                >
+                <Link key={item.href} href={item.href} className="block rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white">
                   {item.label}
                 </Link>
               ))}
@@ -48,9 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Aplicación interna</p>
                   <h2 className="text-lg font-semibold">Control integral de cursos</h2>
                 </div>
-                <div className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300">
-                  Modo prototipo funcional
-                </div>
+                <div className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300">Modo prototipo funcional</div>
               </div>
             </header>
             <div className="p-6">{children}</div>
