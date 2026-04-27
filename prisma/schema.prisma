@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CourseStatus {
+  NO_ACTIVADO
+  ACTIVADO
+  PENDIENTE_BORRADOR_CONVOCATORIA
+  BORRADOR_RECIBIDO
+  CONVOCATORIA_PENDIENTE_PUBLICACION
+  CONVOCATORIA_PUBLICADA
+  PLAZO_SOLICITUDES_ABIERTO
+  PLAZO_SOLICITUDES_CERRADO
+  PENDIENTE_VISADO
+  VISADO_FINALIZADO
+  PENDIENTE_PRUEBAS_FISICAS_RECONOCIMIENTO_MEDICO
+  PENDIENTE_NOMBRAMIENTO_ALUMNOS
+  ALUMNOS_NOMBRADOS
+  FASE_DISTANCIA_EN_CURSO
+  EXAMEN_PREVIO_PENDIENTE
+  FASE_PRESENCIAL_PENDIENTE
+  FASE_PRESENCIAL_EN_CURSO
+  CURSO_FINALIZADO
+  PENDIENTE_ACTA
+  PENDIENTE_PUBLICACION_BOD_FINALIZACION
+  FINALIZADO_PUBLICADO
+}
+
+enum MilestoneReference {
+  INICIO_CURSO
+  FIN_CURSO
+}
+
+enum TaskPriority {
+  CRITICA
+  ALTA
+  MEDIA
+  BAJA
+}
+
+enum TaskStatus {
+  PENDIENTE
+  EN_CURSO
+  BLOQUEADA
+  FINALIZADA
+}
+
+enum TaskSource {
+  HITO_AUTOMATICO
+  MANUAL
+}
+
+enum TaskLinkType {
+  CURSO
+  HITO
+  INSTANCIA
+  DOCUMENTO
+  GENERAL
+}
+
+enum RequestStatus {
+  RECIBIDA
+  PENDIENTE_INFORME
+  INFORME_SOLICITADO
+  INFORME_RECIBIDO
+  EN_ESTUDIO
+  PROPUESTA_REDACTADA
+  PENDIENTE_FIRMA
+  NOTIFICADA
+  ARCHIVADA
+  RECURRIDA
+}
+
+enum RequestResult {
+  EN_ESTUDIO
+  ESTIMADA
+  ESTIMADA_PARCIALMENTE
+  DESESTIMADA
+  INADMITIDA
+}
+
+enum DocumentType {
+  OFICIO
+  INFORME
+  PROPUESTA
+  RESOLUCION
+  INDICE_EXPEDIENTE
+  NOTIFICACION
+  CONVOCATORIA
+  ACTA
+  CORREO
+  OTRO
+}
+
+enum DocumentStatus {
+  BORRADOR
+  PENDIENTE_REVISION
+  PENDIENTE_FIRMA
+  FIRMADO
+  NOTIFICADO
+  ARCHIVADO
+}
+
+model Course {
+  id                         String            @id @default(cuid())
+  code                       String            @unique
+  name                       String
+  status                     CourseStatus      @default(NO_ACTIVADO)
+  type                       String
+  modality                   String
+  school                     String
+  startDate                  DateTime
+  endDate                    DateTime
+  active                     Boolean           @default(true)
+  requiresMedicalAndPhysical Boolean           @default(false)
+  appointedStudents          Int               @default(0)
+  droppedStudents            Int               @default(0)
+  graduatedStudents          Int               @default(0)
+  graduatedWomen             Int               @default(0)
+  observations               String?
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+
+  milestones                 CourseMilestone[]
+  tasks                      Task[]
+  requests                   AdministrativeRequest[]
+  documents                  Document[]
+  auditLogs                  AuditLog[]
+
+  @@index([code])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model CourseMilestone {
+  id             String             @id @default(cuid())
+  courseId       String
+  course         Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  templateKey    String?
+  relativeCode   String
+  name           String
+  reference      MilestoneReference
+  offsetDays     Int
+  calculatedDate DateTime
+  completed      Boolean            @default(false)
+  completedAt    DateTime?
+  completedBy    String?
+  observations   String?
+  isManual       Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  tasks          Task[]
+
+  @@index([courseId])
+  @@index([calculatedDate])
+  @@index([completed])
+}
+
+model Task {
+  id             String          @id @default(cuid())
+  title          String
+  description    String?
+  courseId       String?
+  course         Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  milestoneId    String?
+  milestone      CourseMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  requestId      String?
+  request        AdministrativeRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  documentId     String?
+  document       Document?       @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  dueDate        DateTime
+  priority       TaskPriority    @default(MEDIA)
+  status         TaskStatus      @default(PENDIENTE)
+  responsible    String
+  source         TaskSource      @default(MANUAL)
+  linkType       TaskLinkType    @default(GENERAL)
+  relatedLabel   String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([courseId])
+  @@index([milestoneId])
+  @@index([dueDate])
+  @@index([priority])
+  @@index([status])
+}
+
+model AdministrativeRequest {
+  id              String        @id @default(cuid())
+  expedienteCode  String        @unique
+  interestedName  String
+  rank            String?
+  maskedDni       String?
+  unit            String?
+  courseId        String?
+  course          Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  requestType     String
+  entryDate       DateTime
+  status          RequestStatus @default(RECIBIDA)
+  result          RequestResult @default(EN_ESTUDIO)
+  reportRequestedTo String?
+  deadline        DateTime?
+  observations    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tasks           Task[]
+  documents       Document[]
+  auditLogs       AuditLog[]
+
+  @@index([expedienteCode])
+  @@index([courseId])
+  @@index([status])
+  @@index([deadline])
+}
+
+model Document {
+  id            String         @id @default(cuid())
+  title         String
+  type          DocumentType
+  status        DocumentStatus @default(BORRADOR)
+  courseId      String?
+  course        Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  requestId     String?
+  request       AdministrativeRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  reference     String?
+  fileName      String?
+  content       String?
+  folioStart    Int?
+  folioEnd      Int?
+  responsible   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  tasks         Task[]
+  auditLogs     AuditLog[]
+
+  @@index([courseId])
+  @@index([requestId])
+  @@index([type])
+  @@index([status])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      String
+  field       String?
+  oldValue    String?
+  newValue    String?
+  userLabel   String?
+  courseId    String?
+  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  requestId   String?
+  request     AdministrativeRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
