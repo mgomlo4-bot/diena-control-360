@@ -15,6 +15,11 @@ function alertClass(level: string): string {
   return 'border-emerald-700 bg-emerald-950/40 text-emerald-100';
 }
 
+function percent(part: number, total: number): string {
+  if (!total) return '0%';
+  return `${Math.round((part / total) * 100)}%`;
+}
+
 export default function CourseDetailClient({ courseId }: { courseId: string }) {
   const [courses, setCourses] = useState<Course[]>(mockCourses);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -74,6 +79,8 @@ export default function CourseDetailClient({ courseId }: { courseId: string }) {
   const next = getNextPendingMilestone(course.milestones);
   const last = getLastCompletedMilestone(course.milestones);
   const alerts = getCourseAlerts(course);
+  const appointedWomen = course.appointedWomen ?? 0;
+  const activeStudents = Math.max(course.appointedStudents - course.droppedStudents, 0);
 
   return (
     <section className="space-y-6">
@@ -102,6 +109,24 @@ export default function CourseDetailClient({ courseId }: { courseId: string }) {
         <article className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-xl"><p className="text-sm uppercase tracking-[0.3em] text-slate-500">Último avance</p><h2 className="mt-3 text-lg font-semibold">{last?.name ?? 'Sin hitos completados'}</h2><p className="mt-2 text-sm text-slate-400">{last ? `Completado según la checklist del curso. Fecha prevista: ${formatCourseDate(last.calculatedDate)}.` : 'Todavía no se ha marcado ningún hito como completado.'}</p></article>
       </div>
 
+      <article className="rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-blue-300">Estadística del curso</p>
+            <h2 className="mt-2 text-2xl font-bold">Alumnos, bajas y egresos</h2>
+            <p className="mt-2 text-sm text-slate-400">Resumen numérico para control de nombramientos, seguimiento durante el curso y cierre estadístico final.</p>
+          </div>
+          <div className="rounded-full border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-300">Permanecen en curso: <span className="font-bold text-slate-100">{activeStudents}</span></div>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <StatCard label="Alumnos nombrados" value={course.appointedStudents} detail="Total nombrado" />
+          <StatCard label="Mujeres nombradas" value={appointedWomen} detail={`${percent(appointedWomen, course.appointedStudents)} del nombramiento`} />
+          <StatCard label="Bajas durante el curso" value={course.droppedStudents} detail={`${percent(course.droppedStudents, course.appointedStudents)} del total nombrado`} />
+          <StatCard label="Alumnos egresados" value={course.graduatedStudents} detail={`${percent(course.graduatedStudents, course.appointedStudents)} del total nombrado`} />
+          <StatCard label="Mujeres egresadas" value={course.graduatedWomen} detail={`${percent(course.graduatedWomen, course.graduatedStudents)} del egreso`} />
+        </div>
+      </article>
+
       <div className="grid gap-5 md:grid-cols-4"><InfoCard label="Escuela / centro" value={course.school} /><InfoCard label="Inicio" value={formatCourseDate(course.startDate)} /><InfoCard label="Fin" value={formatCourseDate(course.endDate)} /><InfoCard label="Alumnos nombrados" value={String(course.appointedStudents)} /></div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
@@ -114,4 +139,5 @@ export default function CourseDetailClient({ courseId }: { courseId: string }) {
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border border-blue-800/60 bg-slate-950/70 p-4"><p className="text-xs uppercase tracking-wide text-blue-200/80">{label}</p><p className="mt-2 font-semibold text-white">{value}</p></div>; }
 function InfoCard({ label, value }: { label: string; value: string }) { return <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl"><p className="text-xs uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 font-semibold text-slate-100">{value}</p></article>; }
+function StatCard({ label, value, detail }: { label: string; value: number; detail: string }) { return <article className="rounded-2xl border border-slate-700 bg-slate-950 p-5"><p className="text-xs uppercase tracking-wide text-slate-500">{label}</p><p className="mt-3 text-4xl font-bold text-slate-100">{value}</p><p className="mt-2 text-sm text-slate-400">{detail}</p></article>; }
 function Row({ label, value }: { label: string; value: string }) { return <div className="flex justify-between gap-4 border-b border-slate-800 pb-2 last:border-b-0"><span className="text-slate-400">{label}</span><span className="font-semibold text-slate-100">{value}</span></div>; }

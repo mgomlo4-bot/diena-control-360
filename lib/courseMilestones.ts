@@ -29,6 +29,7 @@ export type Course = {
   active: boolean;
   requiresMedicalAndPhysical: boolean;
   appointedStudents: number;
+  appointedWomen: number;
   droppedStudents: number;
   graduatedStudents: number;
   graduatedWomen: number;
@@ -36,97 +37,19 @@ export type Course = {
 };
 
 export const baseMilestoneTemplates: CourseMilestoneTemplate[] = [
-  {
-    id: 'draft-send',
-    relativeCode: 'T-30',
-    name: 'Enviar borrador de convocatoria a la escuela',
-    reference: 'INICIO_CURSO',
-    offsetDays: -30,
-  },
-  {
-    id: 'draft-receive',
-    relativeCode: 'T-25',
-    name: 'Recibir borrador corregido por la escuela',
-    reference: 'INICIO_CURSO',
-    offsetDays: -25,
-  },
-  {
-    id: 'publish-call',
-    relativeCode: 'T-18',
-    name: 'Preparar/publicar convocatoria',
-    reference: 'INICIO_CURSO',
-    offsetDays: -18,
-  },
-  {
-    id: 'requests-close',
-    relativeCode: 'T-9',
-    name: 'Fin de plazo de solicitudes',
-    reference: 'INICIO_CURSO',
-    offsetDays: -9,
-  },
-  {
-    id: 'visa-close',
-    relativeCode: 'T-6',
-    name: 'Fin de visado / extracción de peticionarios',
-    reference: 'INICIO_CURSO',
-    offsetDays: -6,
-  },
-  {
-    id: 'appointment-proposal',
-    relativeCode: 'T-4',
-    name: 'Propuesta de nombramiento de alumnos',
-    reference: 'INICIO_CURSO',
-    offsetDays: -4,
-  },
-  {
-    id: 'appointment-send',
-    relativeCode: 'T-3',
-    name: 'Envío de nombramiento para firma/publicación',
-    reference: 'INICIO_CURSO',
-    offsetDays: -3,
-  },
-  {
-    id: 'course-start',
-    relativeCode: 'T',
-    name: 'Inicio del curso',
-    reference: 'INICIO_CURSO',
-    offsetDays: 0,
-  },
-  {
-    id: 'course-end',
-    relativeCode: 'F',
-    name: 'Fin del curso',
-    reference: 'FIN_CURSO',
-    offsetDays: 0,
-  },
-  {
-    id: 'final-news-request',
-    relativeCode: 'F+3',
-    name: 'Solicitar novedad de finalización',
-    reference: 'FIN_CURSO',
-    offsetDays: 3,
-  },
-  {
-    id: 'acta-receive',
-    relativeCode: 'F+5',
-    name: 'Recibir acta o relación de alumnos finalizados',
-    reference: 'FIN_CURSO',
-    offsetDays: 5,
-  },
-  {
-    id: 'bod-finalization',
-    relativeCode: 'F+10',
-    name: 'Preparar publicación BOD de finalización',
-    reference: 'FIN_CURSO',
-    offsetDays: 10,
-  },
-  {
-    id: 'admin-close',
-    relativeCode: 'F+15',
-    name: 'Cierre administrativo del curso',
-    reference: 'FIN_CURSO',
-    offsetDays: 15,
-  },
+  { id: 'draft-send', relativeCode: 'T-30', name: 'Enviar borrador de convocatoria a la escuela', reference: 'INICIO_CURSO', offsetDays: -30 },
+  { id: 'draft-receive', relativeCode: 'T-25', name: 'Recibir borrador corregido por la escuela', reference: 'INICIO_CURSO', offsetDays: -25 },
+  { id: 'publish-call', relativeCode: 'T-18', name: 'Preparar/publicar convocatoria', reference: 'INICIO_CURSO', offsetDays: -18 },
+  { id: 'requests-close', relativeCode: 'T-9', name: 'Fin de plazo de solicitudes', reference: 'INICIO_CURSO', offsetDays: -9 },
+  { id: 'visa-close', relativeCode: 'T-6', name: 'Fin de visado / extracción de peticionarios', reference: 'INICIO_CURSO', offsetDays: -6 },
+  { id: 'appointment-proposal', relativeCode: 'T-4', name: 'Propuesta de nombramiento de alumnos', reference: 'INICIO_CURSO', offsetDays: -4 },
+  { id: 'appointment-send', relativeCode: 'T-3', name: 'Envío de nombramiento para firma/publicación', reference: 'INICIO_CURSO', offsetDays: -3 },
+  { id: 'course-start', relativeCode: 'T', name: 'Inicio del curso', reference: 'INICIO_CURSO', offsetDays: 0 },
+  { id: 'course-end', relativeCode: 'F', name: 'Fin del curso', reference: 'FIN_CURSO', offsetDays: 0 },
+  { id: 'final-news-request', relativeCode: 'F+3', name: 'Solicitar novedad de finalización', reference: 'FIN_CURSO', offsetDays: 3 },
+  { id: 'acta-receive', relativeCode: 'F+5', name: 'Recibir acta o relación de alumnos finalizados', reference: 'FIN_CURSO', offsetDays: 5 },
+  { id: 'bod-finalization', relativeCode: 'F+10', name: 'Preparar publicación BOD de finalización', reference: 'FIN_CURSO', offsetDays: 10 },
+  { id: 'admin-close', relativeCode: 'F+15', name: 'Cierre administrativo del curso', reference: 'FIN_CURSO', offsetDays: 15 },
 ];
 
 export const medicalAndPhysicalTemplate: CourseMilestoneTemplate = {
