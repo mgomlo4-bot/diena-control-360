@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { prisma } from './prisma';
+import { AUTH_COOKIE_NAME, SESSION_TTL_DAYS } from './authConstants';
 
-export const AUTH_COOKIE_NAME = 'diena_session';
-export const SESSION_TTL_DAYS = 7;
+export { AUTH_COOKIE_NAME, SESSION_TTL_DAYS };
 
 export type AuthRole = 'ADMIN' | 'USER';
 
