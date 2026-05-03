@@ -35,6 +35,7 @@ export type ManualTaskSeed = {
   priority: TaskPriority;
   status: TaskStatus;
   responsible: string;
+  source?: TaskSource;
   linkType: TaskLinkType;
   relatedLabel: string;
   createdAt: string;
@@ -80,7 +81,7 @@ export function milestoneToTask(course: Course, milestone: CourseMilestone): Cou
 export function manualTaskToCourseTask(task: ManualTaskSeed): CourseTask {
   return {
     ...task,
-    source: 'manual',
+    source: task.source ?? 'manual',
     milestoneId: undefined,
     milestoneCode: undefined,
   };
