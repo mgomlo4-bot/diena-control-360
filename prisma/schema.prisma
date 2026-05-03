@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
 enum CourseStatus {
   NO_ACTIVADO
   ACTIVADO
@@ -106,6 +111,34 @@ enum DocumentStatus {
   ARCHIVADO
 }
 
+model AppUser {
+  id           String       @id @default(cuid())
+  username     String       @unique
+  displayName  String
+  passwordHash String
+  role         UserRole     @default(USER)
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sessions     AppSession[]
+
+  @@index([username])
+  @@index([active])
+  @@index([role])
+}
+
+model AppSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Course {
   id                         String            @id @default(cuid())
   code                       String            @unique
@@ -119,6 +152,7 @@ model Course {
   active                     Boolean           @default(true)
   requiresMedicalAndPhysical Boolean           @default(false)
   appointedStudents          Int               @default(0)
+  appointedWomen             Int               @default(0)
   droppedStudents            Int               @default(0)
   graduatedStudents          Int               @default(0)
   graduatedWomen             Int               @default(0)
