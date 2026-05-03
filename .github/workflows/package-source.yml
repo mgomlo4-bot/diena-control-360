@@ -1,0 +1,30 @@
+name: Package source zip
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create source archive
+        run: |
+          mkdir -p dist
+          zip -r dist/DIENA_CONTROL_360_SOURCE.zip . \
+            -x './.git/*' \
+            -x './node_modules/*' \
+            -x './.next/*' \
+            -x './dist/*'
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: DIENA_CONTROL_360_SOURCE
+          path: dist/DIENA_CONTROL_360_SOURCE.zip
+          retention-days: 7
