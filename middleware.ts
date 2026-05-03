@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE_NAME } from './lib/authConstants';
 
-const publicPaths = ['/login'];
+const publicPaths = ['/login', '/setup'];
 const publicPrefixes = ['/api/auth/login', '/api/auth/bootstrap', '/_next', '/favicon.ico'];
 
 export function middleware(request: NextRequest) {
