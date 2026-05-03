@@ -1,11 +1,13 @@
 import { Course } from './courseMilestones';
 import { CourseTask, ManualTaskSeed } from './courseTasks';
 import {
+  fromDbCourseStatus,
   fromDbTaskLinkType,
   fromDbTaskPriority,
   fromDbTaskSource,
   fromDbTaskStatus,
   normalizeDateValue,
+  toDbCourseStatus,
   toDbTaskLinkType,
   toDbTaskPriority,
   toDbTaskSource,
@@ -27,9 +29,10 @@ type ApiTask = Omit<CourseTask, 'priority' | 'status' | 'source' | 'linkType' | 
   createdAt: string | Date;
 };
 
-type ApiCourse = Omit<Course, 'startDate' | 'endDate'> & {
+type ApiCourse = Omit<Course, 'startDate' | 'endDate' | 'status'> & {
   startDate: string | Date;
   endDate: string | Date;
+  status: string;
 };
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -53,6 +56,7 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 function normalizeCourseFromApi(course: ApiCourse): Course {
   return {
     ...course,
+    status: fromDbCourseStatus(course.status),
     startDate: normalizeDateValue(course.startDate),
     endDate: normalizeDateValue(course.endDate),
     milestones: (course.milestones ?? []).map((milestone) => ({
@@ -60,6 +64,13 @@ function normalizeCourseFromApi(course: ApiCourse): Course {
       calculatedDate: normalizeDateValue(milestone.calculatedDate),
       observations: milestone.observations ?? '',
     })),
+  };
+}
+
+function serializeCourseForApi(course: Partial<Course>) {
+  return {
+    ...course,
+    status: course.status ? toDbCourseStatus(course.status) : undefined,
   };
 }
 
@@ -98,7 +109,7 @@ export async function fetchCourseFromApi(id: string): Promise<Course> {
 export async function createCourseInApi(course: Partial<Course>): Promise<Course> {
   const created = await requestJson<ApiCourse>('/api/courses', {
     method: 'POST',
-    body: JSON.stringify(course),
+    body: JSON.stringify(serializeCourseForApi(course)),
   });
   return normalizeCourseFromApi(created);
 }
@@ -106,7 +117,7 @@ export async function createCourseInApi(course: Partial<Course>): Promise<Course
 export async function updateCourseInApi(id: string, course: Partial<Course>): Promise<Course> {
   const updated = await requestJson<ApiCourse>(`/api/courses/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(course),
+    body: JSON.stringify(serializeCourseForApi(course)),
   });
   return normalizeCourseFromApi(updated);
 }
