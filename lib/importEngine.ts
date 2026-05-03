@@ -40,6 +40,8 @@ const courseHeaderMap: Record<string, keyof Course> = {
   activo: 'active',
   alumnos_nombrados: 'appointedStudents',
   nombrados: 'appointedStudents',
+  mujeres_nombradas: 'appointedWomen',
+  nombradas: 'appointedWomen',
   bajas: 'droppedStudents',
   alumnos_baja: 'droppedStudents',
   egresados: 'graduatedStudents',
@@ -113,7 +115,7 @@ export function previewCourseImport(rawRows: Record<string, unknown>[]): ImportP
     Object.entries(raw).forEach(([header, value]) => {
       const target = courseHeaderMap[normalizeHeader(header)];
       if (!target) return;
-      if (['appointedStudents', 'droppedStudents', 'graduatedStudents', 'graduatedWomen'].includes(target)) {
+      if (['appointedStudents', 'appointedWomen', 'droppedStudents', 'graduatedStudents', 'graduatedWomen'].includes(target)) {
         (mapped as Record<string, unknown>)[target] = parseNumber(value);
       } else if (['active', 'requiresMedicalAndPhysical'].includes(target)) {
         (mapped as Record<string, unknown>)[target] = parseBoolean(value);
@@ -137,6 +139,7 @@ export function previewCourseImport(rawRows: Record<string, unknown>[]): ImportP
       active: mapped.active ?? true,
       requiresMedicalAndPhysical: mapped.requiresMedicalAndPhysical ?? false,
       appointedStudents: mapped.appointedStudents ?? 0,
+      appointedWomen: mapped.appointedWomen ?? 0,
       droppedStudents: mapped.droppedStudents ?? 0,
       graduatedStudents: mapped.graduatedStudents ?? 0,
       graduatedWomen: mapped.graduatedWomen ?? 0,
