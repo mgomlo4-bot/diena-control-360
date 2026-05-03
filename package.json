@@ -2,11 +2,14 @@
   "name": "diena-control-360",
   "version": "0.1.0",
   "private": true,
-  "description": "Aplicación interna para la Dirección de Enseñanza Naval (DIENA) que centraliza cursos, hitos, instancias, tareas, responsables, centros, documentos y calendario.",
+  "description": "Web app interna para la Dirección de Enseñanza Naval (DIENA) que centraliza cursos, hitos, instancias, tareas, responsables, centros, documentos y calendario, accesible online sin instalación local para el usuario final.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
     "seed": "prisma db seed"
   },
   "dependencies": {
