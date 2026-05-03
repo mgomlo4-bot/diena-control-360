@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE_NAME } from './lib/auth';
+import { AUTH_COOKIE_NAME } from './lib/authConstants';
 
 const publicPaths = ['/login'];
-const publicPrefixes = ['/api/auth/login', '/_next', '/favicon.ico'];
+const publicPrefixes = ['/api/auth/login', '/api/auth/bootstrap', '/_next', '/favicon.ico'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
