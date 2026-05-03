@@ -1,11 +1,13 @@
 import { Course } from './courseMilestones';
 import { ManualTaskSeed } from './courseTasks';
+import { AdministrativeInstance, mockInstances } from './instances';
 import { mockCourses } from './mockCourses';
 import { mockManualTasks } from './mockTasks';
 
 export const STORAGE_KEYS = {
   courses: 'diena-control-360.courses',
   manualTasks: 'diena-control-360.manualTasks',
+  instances: 'diena-control-360.instances',
 } as const;
 
 function canUseBrowserStorage(): boolean {
@@ -55,4 +57,18 @@ export function writeStoredManualTasks(tasks: ManualTaskSeed[]): void {
 export function resetStoredManualTasks(): ManualTaskSeed[] {
   writeStoredManualTasks(mockManualTasks);
   return mockManualTasks;
+}
+
+export function readStoredInstances(): AdministrativeInstance[] {
+  const instances = readJsonFromStorage<AdministrativeInstance[]>(STORAGE_KEYS.instances, mockInstances);
+  return Array.isArray(instances) ? instances : mockInstances;
+}
+
+export function writeStoredInstances(instances: AdministrativeInstance[]): void {
+  writeJsonToStorage(STORAGE_KEYS.instances, instances);
+}
+
+export function resetStoredInstances(): AdministrativeInstance[] {
+  writeStoredInstances(mockInstances);
+  return mockInstances;
 }
