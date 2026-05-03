@@ -59,7 +59,7 @@ export default function CourseDetailClient({ courseId }: { courseId: string }) {
   }
 
   function updateCourse(updater: (course: Course) => Course): void {
-    setCourses((current) => current.map((item) => (item.id === course.id ? updater(item) : item)));
+    setCourses((current) => current.map((item) => (item.id === courseId ? updater(item) : item)));
   }
 
   function toggleMilestone(milestoneId: string): void {
